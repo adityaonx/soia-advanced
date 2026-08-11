@@ -283,32 +283,15 @@ const onZoom = async (linearScale: number) => {
 };
 
 const onSetAspectRatio = async (ratio: string) => {
-    // Always reset any previous stretching bugs
+    // We only use this now to reset any previous stretching bugs or filters.
+    // The actual crop preset logic is now handled as Zoom multipliers in RightControls.vue!
     await invoke("mpv_run_command", {
         args: ["set", "video-aspect-override", "no"],
     });
 
-    if (ratio === "no" || ratio === "Auto") {
-        await invoke("mpv_set_property", {
-            name: "vf",
-            value: "",
-        });
-        return;
-    }
-
-    // Convert ratio string to math expression (e.g. "16:9" -> "16/9")
-    let rExpr = ratio;
-    if (ratio.includes(":")) {
-        const [w, h] = ratio.split(":");
-        rExpr = `${w}/${h}`;
-    }
-
-    // Crop the video from the center to the target aspect ratio without stretching
-    const cropFilter = `lavfi=[crop='min(iw,ih*(${rExpr}))':'min(ih,iw/(${rExpr}))']`;
-
     await invoke("mpv_set_property", {
         name: "vf",
-        value: cropFilter,
+        value: "",
     });
 };
 

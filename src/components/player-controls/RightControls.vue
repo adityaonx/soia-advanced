@@ -133,6 +133,22 @@ const showSettingsMenu = computed(() => props.showSettingsMenu);
 const showSurroundMenu = computed(() => props.showSurroundMenu);
 const showCropMenu = computed(() => props.showCropMenu);
 const currentZoom = ref(1.0);
+
+const applyCropZoom = (targetRatio: number | null) => {
+    if (!targetRatio) {
+        currentZoom.value = 1.0;
+        emit('set-zoom', 1.0);
+        // Also emit set-aspect-ratio "no" to clear any previous aspect overrides
+        emit('set-aspect-ratio', 'no');
+        return;
+    }
+    const baseRatio = 16 / 9; // Assume standard 16:9 encode for letterbox
+    // Always zoom IN to crop the letterbox
+    const zoomMultiplier = Math.max(targetRatio / baseRatio, baseRatio / targetRatio);
+    currentZoom.value = zoomMultiplier;
+    emit('set-zoom', zoomMultiplier);
+    emit('set-aspect-ratio', 'no');
+};
 const activeSubTarget = computed(() => props.activeSubTarget);
 const activeSubFontFamily = computed(() =>
     props.primarySubFontFamily,
@@ -1143,12 +1159,12 @@ watch(
                     <div class="track-menu__list track-menu__list--settings panel__surround-body">
                         <!-- Ratios -->
                         <div class="panel__surround-presets">
-                            <button class="panel__surround-preset" @click="emit('set-aspect-ratio', 'no')">Auto</button>
-                            <button class="panel__surround-preset" @click="emit('set-aspect-ratio', '16:9')">16:9</button>
-                            <button class="panel__surround-preset" @click="emit('set-aspect-ratio', '16:10')">16:10</button>
-                            <button class="panel__surround-preset" @click="emit('set-aspect-ratio', '4:3')">4:3</button>
-                            <button class="panel__surround-preset" @click="emit('set-aspect-ratio', '21:9')">21:9</button>
-                            <button class="panel__surround-preset" @click="emit('set-aspect-ratio', '2.35:1')">2.35:1</button>
+                            <button class="panel__surround-preset" @click="applyCropZoom(null)">Auto</button>
+                            <button class="panel__surround-preset" @click="applyCropZoom(16/9)">16:9</button>
+                            <button class="panel__surround-preset" @click="applyCropZoom(16/10)">16:10</button>
+                            <button class="panel__surround-preset" @click="applyCropZoom(4/3)">4:3</button>
+                            <button class="panel__surround-preset" @click="applyCropZoom(21/9)">21:9</button>
+                            <button class="panel__surround-preset" @click="applyCropZoom(2.35)">2.35:1</button>
                         </div>
 
                         <!-- Zoom Slider -->
