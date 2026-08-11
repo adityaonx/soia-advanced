@@ -36,3 +36,9 @@ This document outlines the latest advanced features added to the Soia player, so
   - Added a dedicated UI Zoom slider (0.5x to 3.0x scale) to the panel.
   - Wired `set-aspect-ratio` in `App.vue` to execute `invoke("mpv_run_command", { args: ["set", "video-aspect-override", ratio] })`.
   - Updated `useMenuControls.ts` to handle mutual exclusivity of the new `showCropMenu` state alongside existing menus.
+
+## 5. Build Notes & macOS Compatibility
+- **Native DSP vs. SOFA:** Initially, the 3D Surround feature was prototyped using the `sofalizer` audio filter and a large binary `hrtf.sofa` impulse response file. However, `mpv` frequently failed to parse this file because standard macOS/Windows FFmpeg distributions do not ship with the required `libmysofa` C-library dependency.
+- **The Native Pivot:** To guarantee 100% cross-platform compatibility across macOS (Apple Silicon & Intel), Windows, and Linux out-of-the-box, the architecture was rewritten to use only native `mpv` DSP filters. 
+- **Cleanup:** The unused `hrtf.sofa` file was permanently deleted from the repository to prevent unnecessary app bloat. Its corresponding configuration entry was removed from the `tauri.conf.json` resources block to fix bundle compilation errors.
+- **Troubleshooting Configs (`tauri.runtime.macos.json`):** If you clone this repository to a new directory or experience a `[ERROR] tauri macOS runtime config is out of sync` error when running `pnpm bundle:mac:release`, simply run `pnpm setup:libs` to instantly regenerate the necessary Tauri configuration files with correct local absolute paths.
