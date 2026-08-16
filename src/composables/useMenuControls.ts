@@ -1,4 +1,4 @@
-import type { Ref } from "vue";
+import { ref, type Ref } from "vue";
 
 type MenuRefs = {
     showAudioMenu: Ref<boolean>;
@@ -20,6 +20,8 @@ export const useMenuControls = (
     speed: SpeedRefs,
     settings: SettingsRefs,
 ) => {
+    const showSurroundMenu = ref(false);
+
     const hideAllMenus = () => {
         tracks.showAudioMenu.value = false;
         tracks.showSubMenu.value = false;
@@ -27,15 +29,19 @@ export const useMenuControls = (
         speed.showSpeedMenu.value = false;
         settings.showSettingsMenu.value = false;
         settings.showCropMenu.value = false;
+        showSurroundMenu.value = false;
     };
 
-    const toggleMenu = (menuName: "audio" | "sub" | "speed" | "settings" | "crop") => {
+    const toggleMenu = (
+        menuName: "audio" | "sub" | "speed" | "settings" | "crop" | "surround",
+    ) => {
         const wasOpen = {
             audio: tracks.showAudioMenu.value,
             sub: tracks.showSubMenu.value,
             speed: speed.showSpeedMenu.value,
             settings: settings.showSettingsMenu.value,
             crop: settings.showCropMenu.value,
+            surround: showSurroundMenu.value,
         };
 
         hideAllMenus();
@@ -55,6 +61,9 @@ export const useMenuControls = (
         if (menuName === "crop" && !wasOpen.crop) {
             settings.showCropMenu.value = true;
         }
+        if (menuName === "surround" && !wasOpen.surround) {
+            showSurroundMenu.value = true;
+        }
     };
 
     const closeAllMenus = (event: MouseEvent) => {
@@ -65,6 +74,7 @@ export const useMenuControls = (
     };
 
     return {
+        showSurroundMenu,
         hideAllMenus,
         toggleMenu,
         closeAllMenus,
