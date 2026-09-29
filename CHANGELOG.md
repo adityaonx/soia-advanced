@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.2.12] - 2026-09-19
+
+### Features
+
+- Added support for loading a user mpv config file, selectable in Settings > General. Note that not every mpv option is fully compatible with Soia's rendering and playback pipeline.
+- Added sorting options to the Network browser, supporting sort by name or date added in ascending or descending order, with folders kept at the top in every sort mode.
+- Added Simplified Chinese localization, selectable via the new Language setting in Settings > General.
+
+### Fixes
+
+- Fixed incorrect HDR and Dolby Vision color and brightness on macOS by applying display-P3/PQ output hints and perceptual gamut mapping.
+
+## [0.2.11] - 2026-08-29
+
+### Features
+
+- Added casting to DLNA media renderers and Chromecast devices for local files, DLNA/SMB/WebDAV media, and online streams.
+- Casting uses Soia as the media relay, so Soia must remain running while a cast session is active.
+- Added audio output device selection and passthrough support for supported formats.
+- Added continuous playback speed control with 0.1-step increments.
+- Added video zoom and crop controls, including non-distorting aspect-ratio crop presets.
+- Added click-to-toggle play/pause on playback surfaces when Compact Mode is disabled.
+
+### Improvements
+
+- Improved YouTube/yt-dlp stream parsing and format selection, including handling for separate audio and video streams.
+- Improved cast receiver discovery, playback handoff, receiver-driven controls, and natural next-item advancement at end of playback.
+- Improved audio output device handling and retry behavior when changing passthrough routes.
+- Updated the bundled mpv runtime to v0.41.0-r16.
+
+### Fixes
+
+- Fixed duplicate audio output devices appearing in the output selector.
+- Hardened DLNA receiver recovery and error handling during casting.
+
 ## [0.2.10] - 2026-08-08
 
 ### Features

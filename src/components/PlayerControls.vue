@@ -2,6 +2,8 @@
 import { nextTick, onMounted, onUnmounted, ref } from "vue";
 import type { MediaTrack } from "../types/media";
 import type { SubtitleTarget } from "../composables/useSubtitleState";
+import { useCasting } from "../composables/useCasting";
+import { tauriCastingClient } from "../core-client/tauriCastingClient";
 import SeekBar from "./player-controls/SeekBar.vue";
 import LeftControls from "./player-controls/LeftControls.vue";
 import RightControls from "./player-controls/RightControls.vue";
@@ -20,6 +22,7 @@ const props = defineProps<{
     statusBadges: string[];
     audioPassthroughActive: boolean;
     currentSpeed: number;
+    currentZoom: number;
     playbackRates: number[];
     showSpeedMenu: boolean;
     showSettingsMenu: boolean;
@@ -33,8 +36,10 @@ const props = defineProps<{
     gamma: number;
     hue: number;
     globalColorAdjustmentsEnabled: boolean;
+    globalCropZoomEnabled?: boolean;
     isLoopOne: boolean;
     audioTracks: MediaTrack[];
+    videoTracks: MediaTrack[];
     showAudioMenu: boolean;
     subTracks: MediaTrack[];
     dualSubEnabled: boolean;
@@ -55,6 +60,36 @@ const props = defineProps<{
     isFullscreen: boolean;
 }>();
 
+const casting = useCasting(tauriCastingClient);
+const activeCastCapabilities = () => casting.snapshot.value.device?.capabilities;
+const isCasting = () => casting.snapshot.value.sessionId !== null;
+const seekDisabled = () =>
+    isCasting() &&
+    (!activeCastCapabilities()?.seek || !casting.snapshot.value.seekable);
+const volumeDisabled = () => isCasting() && !activeCastCapabilities()?.volume;
+const castFeatureDisabled = () => isCasting();
+const playbackDisabled = () => {
+    if (!isCasting()) return false;
+    const capabilities = activeCastCapabilities();
+    return !(props.isPlaying ? capabilities?.pause : capabilities?.play);
+};
+
+const seekDisabledReason = () => {
+    if (!isCasting()) return undefined;
+    if (!activeCastCapabilities()?.seek) return "Seek is not supported by this receiver";
+    if (!casting.snapshot.value.seekable) return "This receiver has not reported a seekable timeline";
+    return undefined;
+};
+
+const volumeDisabledReason = () =>
+    volumeDisabled() ? "Volume control is not supported by this receiver" : undefined;
+const castFeatureDisabledReason = () =>
+    castFeatureDisabled() ? "This control is unavailable while casting" : undefined;
+const muteDisabledReason = () =>
+    isCasting() ? "Mute control is not supported by DLNA casting" : undefined;
+const playbackDisabledReason = () =>
+    playbackDisabled() ? "Play/pause is not supported by this receiver" : undefined;
+
 const emit = defineEmits<{
     (e: "prev-track"): void;
     (e: "seek", position: number): void;
@@ -68,6 +103,8 @@ const emit = defineEmits<{
     (e: "toggle-loop-one"): void;
     (e: "set-speed", rate: number): void;
     (e: "set-speed-continuously", rate: number): void;
+    (e: "set-zoom", scale: number): void;
+    (e: "set-aspect-ratio", ratio: string): void;
     (e: "set-volume", volume: number): void;
     (e: "toggle-muted"): void;
     (e: "set-audio-delay", value: number): void;
@@ -83,6 +120,8 @@ const emit = defineEmits<{
     (e: "set-gamma", value: number): void;
     (e: "set-hue", value: number): void;
     (e: "set-global-color-adjustments-enabled", enabled: boolean): void;
+    (e: "set-global-crop-zoom-enabled", enabled: boolean): void;
+    (e: "update-crop-zoom", payload: { zoom: number; ratio: string }): void;
     (e: "select-audio", track: MediaTrack): void;
     (e: "select-sub-track", payload: { target: SubtitleTarget; track: MediaTrack }): void;
     (e: "set-active-sub-target", target: SubtitleTarget): void;
@@ -226,6 +265,8 @@ onUnmounted(() => {
                 :buffered-percent="bufferedPercent"
                 :format-time="formatTime"
                 :controls-visible="controlsVisible"
+                :disabled="seekDisabled()"
+                :disabled-reason="seekDisabledReason()"
                 @seek="emit('seek', $event)"
             />
             <div ref="controlsViewportRef" class="controls-main-viewport">
@@ -244,7 +285,15 @@ onUnmounted(() => {
                         :volume="volume"
                         :format-time="formatTime"
                         :badges="props.statusBadges"
-                        :passthrough-active="audioPassthroughActive"
+                        :passthrough-active="audioPassthroughActive && !isCasting()"
+                        :playback-disabled="playbackDisabled()"
+                        :playback-disabled-reason="playbackDisabledReason()"
+                        :navigation-disabled="false"
+                        :navigation-disabled-reason="undefined"
+                        :volume-disabled="volumeDisabled()"
+                        :volume-disabled-reason="volumeDisabledReason()"
+                        :mute-disabled="isCasting()"
+                        :mute-disabled-reason="muteDisabledReason()"
                         @prev-track="emit('prev-track')"
                         @toggle-play-pause="emit('toggle-play-pause')"
                         @stop-playback="emit('stop-playback')"
@@ -254,6 +303,7 @@ onUnmounted(() => {
                     />
                     <RightControls
                         :current-speed="currentSpeed"
+                        :current-zoom="currentZoom"
                         :playback-rates="playbackRates"
                         :show-speed-menu="showSpeedMenu"
                         :show-settings-menu="showSettingsMenu"
@@ -270,8 +320,10 @@ onUnmounted(() => {
                         :global-color-adjustments-enabled="
                             globalColorAdjustmentsEnabled
                         "
+                        :global-crop-zoom-enabled="globalCropZoomEnabled"
                         :is-loop-one="isLoopOne"
                         :audio-tracks="audioTracks"
+                        :video-tracks="videoTracks"
                         :show-audio-menu="showAudioMenu"
                         :sub-tracks="subTracks"
                         :dual-sub-enabled="dualSubEnabled"
@@ -290,9 +342,13 @@ onUnmounted(() => {
                         :has-audio-tracks="hasAudioTracks"
                         :has-sub-tracks="hasSubTracks"
                         :is-fullscreen="isFullscreen"
+                        :casting-disabled="castFeatureDisabled()"
+                        :casting-disabled-reason="castFeatureDisabledReason()"
                         @toggle-menu="emit('toggle-menu', $event)"
                         @toggle-loop-one="emit('toggle-loop-one')"
                         @set-speed="emit('set-speed', $event)"
+                        @set-zoom="emit('set-zoom', $event)"
+                        @set-aspect-ratio="emit('set-aspect-ratio', $event)"
                         @set-speed-continuously="emit('set-speed-continuously', $event)"
                         @set-audio-delay="emit('set-audio-delay', $event)"
                         @set-sub-delay-for-target="
@@ -310,6 +366,12 @@ onUnmounted(() => {
                         @set-hue="emit('set-hue', $event)"
                         @set-global-color-adjustments-enabled="
                             emit('set-global-color-adjustments-enabled', $event)
+                        "
+                        @set-global-crop-zoom-enabled="
+                            emit('set-global-crop-zoom-enabled', $event)
+                        "
+                        @update-crop-zoom="
+                            emit('update-crop-zoom', $event)
                         "
                         @select-audio="emit('select-audio', $event)"
                         @select-sub-track="emit('select-sub-track', $event)"

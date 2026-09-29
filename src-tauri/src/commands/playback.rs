@@ -24,10 +24,19 @@ fn with_mpv_state<R>(
 
 #[tauri::command]
 pub(crate) async fn execute_playback_command(
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     envelope: crate::protocol::CommandEnvelopeDto,
 ) -> Result<crate::protocol::CommandResultDto, crate::protocol::CoreErrorDto> {
-    state.playback_service.execute(&state, envelope).await
+    let result = state.playback_service.execute(&state, envelope).await;
+    if result.is_ok() {
+        emit_playback_snapshot(&app, &state.playback_state.current());
+        crate::commands::casting::emit_cast_snapshot(
+            &app,
+            &state.casting_service.current_snapshot(),
+        );
+    }
+    result
 }
 
 #[tauri::command]
@@ -35,6 +44,15 @@ pub(crate) fn get_playback_snapshot(
     state: tauri::State<'_, AppState>,
 ) -> crate::protocol::PlaybackSnapshotDto {
     state.playback_state.current()
+}
+
+pub(crate) fn emit_playback_snapshot(
+    app: &tauri::AppHandle,
+    snapshot: &crate::protocol::PlaybackSnapshotDto,
+) {
+    if let Err(error) = app.emit("playback-snapshot", snapshot) {
+        log::warn!("failed to emit playback snapshot: {error}");
+    }
 }
 
 #[tauri::command]
@@ -71,6 +89,10 @@ pub(crate) struct LoadPlaybackSourcePayload {
     key_or_url: String,
     #[serde(default)]
     preferred_title: Option<String>,
+    #[serde(default = "default_auto_play")]
+    auto_play: bool,
+    #[serde(default)]
+    resume_position: Option<f64>,
 }
 
 impl LoadPlaybackSourcePayload {
@@ -78,9 +100,27 @@ impl LoadPlaybackSourcePayload {
         Self {
             key_or_url,
             preferred_title,
+            auto_play: true,
+            resume_position: None,
+        }
+    }
+
+    pub(crate) fn new_cast_navigation(
+        key_or_url: String,
+        preferred_title: Option<String>,
+    ) -> Self {
+        Self {
+            key_or_url,
+            preferred_title,
+            auto_play: false,
+            // Cast navigation starts both outputs at the same deterministic position. The
+            // receiver LOAD and paused local preparation must not independently resume history.
+            resume_position: Some(0.0),
         }
     }
 }
+
+fn default_auto_play() -> bool { true }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -419,7 +459,7 @@ async fn prepare_playlist_source_operation_data(
 
     let source = &sources[0];
     if is_youtube_playlist_source(source) {
-        let resolved = match crate::mpv::resolve_ytdlp_playlist(app, source).await {
+        let resolved = match crate::ytdlp::resolve_playlist(app, source).await {
             Ok(resolved) => resolved,
             Err(error) => {
                 log::warn!("YouTube playlist preparation fell back to original source: {error}");
@@ -703,11 +743,22 @@ pub(crate) async fn load_source(
         return Ok(superseded_load_result());
     }
     let skip_intro_seconds = load_skip_intro_seconds(&app);
-    let resume_position = match crate::store::play_history::resolve_resume_position(
-        &app,
-        &source_key,
-        skip_intro_seconds,
-    ) {
+    let resume_position = match payload.resume_position {
+        Some(position) if position.is_finite() && position >= 0.0 => position,
+        Some(_) => {
+            return source_load_error_or_superseded(
+                &app,
+                &state,
+                generation,
+                &source_key,
+                "resume position must be a non-negative finite number".to_string(),
+            );
+        }
+        None => match crate::store::play_history::resolve_resume_position(
+            &app,
+            &source_key,
+            skip_intro_seconds,
+        ) {
         Ok(position) => position,
         Err(error) => {
             log::warn!("failed to resolve playback resume position: {error}");
@@ -717,11 +768,12 @@ pub(crate) async fn load_source(
                 0.0
             }
         }
+        },
     };
     let playback_speed = state.playback_state.current().speed;
     let load_options = match crate::core::playback_loading::PlaybackLoadOptions::from_optional(
         Some(resume_position),
-        None,
+        Some(payload.auto_play),
         Some(playback_speed),
     ) {
         Ok(options) => options,
@@ -1008,7 +1060,7 @@ pub(crate) async fn resolve_youtube_playlist(
     app: tauri::AppHandle,
     payload: ResolveYoutubePlaylistPayload,
 ) -> Result<ResolvedYoutubePlaylist, String> {
-    let resolved = crate::mpv::resolve_ytdlp_playlist(&app, &payload.url).await?;
+    let resolved = crate::ytdlp::resolve_playlist(&app, &payload.url).await?;
     Ok(ResolvedYoutubePlaylist {
         playlist_title: resolved.title,
         entries: resolved

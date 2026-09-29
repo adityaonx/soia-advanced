@@ -84,6 +84,7 @@ export const PLAYBACK_TITLE_SETTING_LABEL = "PLAYBACK_TITLE";
 export const ALLOW_URL_INPUT_DURING_PLAYBACK_SETTING_LABEL =
     "ALLOW_URL_INPUT_DURING_PLAYBACK";
 export const DEFAULT_SPEED_SETTING_LABEL = "Default Speed";
+export const MPV_CONFIG_PATH_SETTING_LABEL = "MPV_CONFIG_PATH";
 export const IMAGE_DISPLAY_DURATION_SETTING_LABEL = "IMAGE_DISPLAY_DURATION";
 export const DISABLE_SUBTITLES_SETTING_LABEL = "DISABLE_SUBTITLES";
 export const OPENSUBTITLES_ENABLED_SETTING_LABEL = "OPENSUBTITLES_ENABLED";
@@ -108,6 +109,13 @@ export const YTDL_MAX_RESOLUTION_OPTIONS = [
 export const NETWORK_PARALLEL_DOWNLOAD_SETTING_LABEL =
     "NETWORK_PARALLEL_DOWNLOAD";
 export const ONLINE_SUBTITLES_SETTING_GROUP_TITLE = "Online Subtitles";
+export const LANGUAGE_SETTING_LABEL = "LANGUAGE";
+export const LANGUAGE_ENGLISH_OPTION = "English";
+export const LANGUAGE_SIMPLIFIED_CHINESE_OPTION = "简体中文";
+export const LANGUAGE_OPTIONS = [
+    LANGUAGE_ENGLISH_OPTION,
+    LANGUAGE_SIMPLIFIED_CHINESE_OPTION,
+] as const;
 export const SETTINGS_UPDATED_EVENT = "soia:settings-updated";
 
 export type PlaybackTitleMode = "Show" | "Editable" | "Hidden";
@@ -128,6 +136,13 @@ export const defaultSettingGroups: SettingGroup[] = [
                 options: [...THEME_OPTIONS],
             },
             {
+                label: LANGUAGE_SETTING_LABEL,
+                displayLabel: "Language",
+                value: LANGUAGE_OPTIONS[0],
+                type: "select",
+                options: [...LANGUAGE_OPTIONS],
+            },
+            {
                 label: ENABLE_COMPACT_MODE_SETTING_LABEL,
                 displayLabel: "Compact Mode",
                 value: "On",
@@ -140,6 +155,14 @@ export const defaultSettingGroups: SettingGroup[] = [
     {
         title: "Playback",
         items: [
+            {
+                label: MPV_CONFIG_PATH_SETTING_LABEL,
+                displayLabel: "mpv Config File",
+                value: "",
+                type: "path",
+                placeholder: "Optional mpv.conf file",
+                browseTitle: "Select mpv.conf",
+            },
             {
                 label: PLAYBACK_TITLE_SETTING_LABEL,
                 displayLabel: "Playback Title",

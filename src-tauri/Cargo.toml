@@ -1,6 +1,6 @@
 [package]
 name = "soia"
-version = "0.2.10"
+version = "0.2.12"
 description = "A Tauri App"
 license = "GPL-3.0-only"
 authors = ["FengZeng"]
@@ -36,14 +36,16 @@ roxmltree = "0.20"
 socket2 = "0.5"
 url = "2.5"
 percent-encoding = "2.3"
-tokio = { version = "1", features = ["io-util", "net", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1", features = ["io-util", "net", "process", "rt-multi-thread", "sync", "time"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 soia-protocol = { path = "protocol" }
 libc = "0.2"
 cfg-if = "1.0"
 log = "0.4"
 env_logger = "0.11"
 chrono = "0.4"
-uuid = { version = "1", features = ["v7"] }
+uuid = { version = "1", features = ["v4", "v7"] }
 qrcode = "0.14"
 if-addrs = "0.14"
 base64 = "0.22"

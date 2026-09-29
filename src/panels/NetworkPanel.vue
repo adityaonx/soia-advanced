@@ -13,9 +13,11 @@ import {
 } from "../utils/resolvePlaybackSource";
 import { useNetworkPanel } from "../composables/useNetworkPanel";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
+import CustomSelect from "../components/CustomSelect.vue";
 import NetworkConnectionsView from "../components/network/NetworkConnectionsView.vue";
 import NetworkBrowserView from "../components/network/NetworkBrowserView.vue";
 import NetworkConnectionModal from "../components/network/NetworkConnectionModal.vue";
+import { settingsLocale, translateSettingsText } from "../i18n";
 
 const props = defineProps<{
     history: HistoryEntry[];
@@ -28,6 +30,9 @@ const {
     activeConnectionLabel,
     networkConnections,
     networkEntries,
+    networkSortField,
+    networkSortDirection,
+    setNetworkSort,
     pathCrumbs,
     parentPath,
     selectedConnection,
@@ -54,6 +59,9 @@ const {
 const emit = defineEmits<{
     (e: "play-network", payload: NetworkPlayRequest): void;
 }>();
+
+const tr = (text: string): string =>
+    translateSettingsText(settingsLocale.value, text);
 
 const isCreateModalOpen = ref(false);
 const isCreatingConnection = ref(false);
@@ -125,6 +133,26 @@ const formatPlaybackTime = (value: number) => {
     return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 };
 
+const networkSortValue = computed({
+    get: () => `${networkSortField.value}:${networkSortDirection.value}`,
+    set: (value: string) => {
+        const [field, direction] = value.split(":");
+        if (
+            (field === "name" || field === "added") &&
+            (direction === "asc" || direction === "desc")
+        ) {
+            setNetworkSort(field, direction);
+        }
+    },
+});
+
+const networkSortOptions = computed(() => [
+    { value: "name:asc", label: tr("Alphabetical (A–Z)") },
+    { value: "name:desc", label: tr("Alphabetical (Z–A)") },
+    { value: "added:desc", label: tr("Date added (newest)") },
+    { value: "added:asc", label: tr("Date added (oldest)") },
+]);
+
 const createForm = reactive({
     label: "",
     protocol: "webdav" as SupportedProtocol,
@@ -147,16 +175,16 @@ const requiresAuthFields = computed(
         isWebdavProtocol.value || isSmbProtocol.value || isFtpProtocol.value,
 );
 const serverFieldLabel = computed(() => {
-    if (isHttpDlnaProtocol.value) return "Device URL";
-    return "Server URL";
+    if (isHttpDlnaProtocol.value) return tr("Device URL");
+    return tr("Server URL");
 });
 const serverFieldPlaceholder = computed(() => {
     if (isHttpDlnaProtocol.value) return "http://192.168.31.66:8200/MediaServer";
-    return "https://example.com/webdav";
+    return "http://192.168.31.25:5244/dav";
 });
 const defaultPathLabel = computed(() => {
-    if (isHttpDlnaProtocol.value) return "Content Path";
-    return "Default Path";
+    if (isHttpDlnaProtocol.value) return tr("Content Path");
+    return tr("Default Path");
 });
 const selectedProtocolLabel = computed(
     () =>
@@ -624,6 +652,17 @@ const maybeOpenSmbCredentialsEditor = (error: unknown) => {
     return true;
 };
 
+const hasExplicitScheme = (value: string) => /^[a-z][a-z0-9+.-]*:\/\//i.test(value);
+
+// `host:port/path` typed without a scheme is either rejected by URL parsing or read as an
+// opaque URL whose scheme is the host name, which drops the port. Add the default scheme
+// here so the saved URL matches what the backend browses.
+const normalizeHttpBaseUrl = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed || hasExplicitScheme(trimmed)) return trimmed;
+    return `http://${trimmed}`;
+};
+
 const buildConnectionBaseUrl = () => {
     if (isSmbProtocol.value) {
         const host = createForm.host.trim();
@@ -641,7 +680,7 @@ const buildConnectionBaseUrl = () => {
         }
         return `ftp://${host}:${port}`;
     }
-    const baseUrl = createForm.baseUrl.trim();
+    const baseUrl = normalizeHttpBaseUrl(createForm.baseUrl);
     if (!baseUrl) {
         throw new Error(
             isHttpDlnaProtocol.value
@@ -704,6 +743,9 @@ const onCreateConnectionSubmit = async () => {
         }
         connection.label = normalizedLabel;
         connection.protocol = createForm.protocol;
+        if (connection.baseUrl !== baseUrl) {
+            connection.tlsCertificateDer = null;
+        }
         connection.baseUrl = baseUrl;
         connection.username = username;
         connection.password = requiresAuthFields.value ? createForm.password : "";
@@ -765,10 +807,10 @@ const pendingDeleteLabel = computed(
     () =>
         pendingDeleteConnection.value?.label ||
         pendingDeleteConnection.value?.id ||
-        "this connection",
+        tr("this connection"),
 );
 const deleteConfirmMessage = computed(
-    () => `Delete connection "${pendingDeleteLabel.value}"?`,
+    () => `${tr("Delete connection")} "${pendingDeleteLabel.value}"?`,
 );
 
 const formatProtocolLabel = (protocol: string) =>
@@ -787,14 +829,14 @@ const formatProtocolLabel = (protocol: string) =>
                     :class="{ 'network-title--browser': viewMode === 'browser' }"
                 >
                     <template v-if="viewMode === 'connections'">
-                        Network
+                        {{ tr("Network") }}
                     </template>
                     <template v-else>
                         <button
                             class="network-icon-btn network-icon-btn--close network-title__home-btn"
                             type="button"
-                            aria-label="Home"
-                            title="Home"
+                            :aria-label="tr('Home')"
+                            :title="tr('Home')"
                             @click="onBackToConnections"
                         >
                             <svg
@@ -814,7 +856,7 @@ const formatProtocolLabel = (protocol: string) =>
                             v-if="shouldShowTitleStatus"
                             class="network-title__status"
                         >
-                            {{ titleStatusText }}
+                            {{ tr(titleStatusText) }}
                         </span>
                         <span
                             v-if="errorMessage"
@@ -826,7 +868,7 @@ const formatProtocolLabel = (protocol: string) =>
                     </template>
                 </div>
                 <div v-if="viewMode === 'connections'" class="network-header__meta">
-                    {{ `${networkConnections.length} connections` }}
+                    {{ `${networkConnections.length} ${tr("connections")}` }}
                 </div>
                 <div
                     v-else-if="shouldShowPathBar"
@@ -842,7 +884,7 @@ const formatProtocolLabel = (protocol: string) =>
                         class="network-title__back-btn"
                         type="button"
                         :disabled="isLoading"
-                        aria-label="Go to parent folder"
+                        :aria-label="tr('Go to parent folder')"
                         @click="onBackFolderClick"
                     >
                         <svg
@@ -903,7 +945,7 @@ const formatProtocolLabel = (protocol: string) =>
                                 class="network-title__path-crumb network-title__path-ellipsis"
                                 type="button"
                                 :disabled="isLoading"
-                                aria-label="Show hidden path folders"
+                                :aria-label="tr('Show hidden path folders')"
                                 :aria-expanded="isPathOverflowMenuOpen"
                                 @click="togglePathOverflowMenu"
                             >
@@ -1010,8 +1052,8 @@ const formatProtocolLabel = (protocol: string) =>
                         class="network-new-btn network-new-btn--refresh"
                         :class="{ 'network-new-btn--spinning': isDiscovering }"
                         type="button"
-                        aria-label="Refresh connections"
-                        :title="isDiscovering ? 'Refreshing' : 'Refresh'"
+                        :aria-label="tr('Refresh connections')"
+                        :title="isDiscovering ? tr('Refreshing') : tr('Refresh')"
                         :disabled="isDiscovering"
                         @click="onConnectionsRefreshClick"
                     >
@@ -1030,8 +1072,8 @@ const formatProtocolLabel = (protocol: string) =>
                     <button
                         class="network-new-btn"
                         type="button"
-                        aria-label="Add connection"
-                        title="New"
+                        :aria-label="tr('Add connection')"
+                        :title="tr('New')"
                         @click="openCreateModal"
                     >
                         <svg
@@ -1048,11 +1090,18 @@ const formatProtocolLabel = (protocol: string) =>
                     </button>
                 </template>
                 <template v-else>
+                    <label class="network-sort-control">
+                        <CustomSelect
+                            v-model="networkSortValue"
+                            :options="networkSortOptions"
+                            :aria-label="tr('Sort network entries')"
+                        />
+                    </label>
                     <button
                         class="network-icon-btn"
                         type="button"
-                        aria-label="Refresh"
-                        title="Refresh"
+                        :aria-label="tr('Refresh')"
+                        :title="tr('Refresh')"
                         @click="onRefreshClick"
                     >
                         <svg
@@ -1100,7 +1149,7 @@ const formatProtocolLabel = (protocol: string) =>
                 aria-live="polite"
             >
                 <div class="network-switch-spinner"></div>
-                <div class="network-switch-text">Opening connection...</div>
+                <div class="network-switch-text">{{ tr("Opening connection...") }}</div>
             </div>
         </transition>
         </div>
@@ -1117,18 +1166,18 @@ const formatProtocolLabel = (protocol: string) =>
             :server-field-label="serverFieldLabel"
             :server-field-placeholder="serverFieldPlaceholder"
             :default-path-label="defaultPathLabel"
-            :create-error="createError"
+            :create-error="tr(createError)"
             :is-creating-connection="isCreatingConnection"
             @close="closeCreateModal"
             @submit="onCreateConnectionSubmit"
         />
         <ConfirmDialog
             :open="isDeleteModalOpen"
-            title="Delete Connection"
+            :title="tr('Delete Connection')"
             :message="deleteConfirmMessage"
-            :confirm-text="isDeletingConnection ? 'Deleting...' : 'Delete'"
+            :confirm-text="isDeletingConnection ? tr('Deleting...') : tr('Delete')"
             :confirm-loading="isDeletingConnection"
-            :error-message="deleteError"
+            :error-message="tr(deleteError)"
             @cancel="closeDeleteModal"
             @confirm="onDeleteConnectionConfirm"
         />

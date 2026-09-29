@@ -1,8 +1,17 @@
 use crate::store::{json_io, storage_paths};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::{Mutex, MutexGuard, OnceLock};
 
 const CONNECTIONS_FILE_NAME: &str = "network_connections.json";
+static CONNECTIONS_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+fn lock_connections() -> Result<MutexGuard<'static, ()>, String> {
+    CONNECTIONS_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .map_err(|error| error.to_string())
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -14,6 +23,8 @@ pub struct NetworkConnectionRecord {
     pub username: String,
     pub password: String,
     pub default_path: String,
+    #[serde(default)]
+    pub tls_certificate_der: Option<String>,
 }
 
 fn connections_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -45,10 +56,19 @@ fn normalize_connection(
         connection.protocol.trim().to_string()
     };
 
+    let is_dlna =
+        protocol.eq_ignore_ascii_case("http-dlna") || protocol.eq_ignore_ascii_case("dlna");
+    let is_http_based = is_dlna || protocol.eq_ignore_ascii_case("webdav");
+    // Keep the stored URL parseable so browsing, playback and the connection list all agree,
+    // even when the user typed `host:port/path` without a scheme.
+    let base_url = if is_http_based {
+        crate::network::protocols::normalize_http_base_url(base_url)
+    } else {
+        base_url.to_string()
+    };
+
     let default_path = {
         let value = connection.default_path.trim();
-        let is_dlna = protocol.eq_ignore_ascii_case("http-dlna")
-            || protocol.eq_ignore_ascii_case("dlna");
         if is_dlna {
             let object_id = value.trim_start_matches('/');
             if object_id.is_empty() {
@@ -69,16 +89,23 @@ fn normalize_connection(
         id: id.to_string(),
         label: label.to_string(),
         protocol,
-        base_url: base_url.to_string(),
+        base_url,
         username: connection.username.trim().to_string(),
         password: connection.password.clone(),
         default_path,
+        tls_certificate_der: connection
+            .tls_certificate_der
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string),
     })
 }
 
 pub fn list_network_connections(
     app: &tauri::AppHandle,
 ) -> Result<Vec<NetworkConnectionRecord>, String> {
+    let _guard = lock_connections()?;
     let path = connections_file_path(app)?;
     json_io::read_json_or_default(&path)
 }
@@ -87,11 +114,17 @@ pub fn save_network_connection(
     app: &tauri::AppHandle,
     connection: NetworkConnectionRecord,
 ) -> Result<Vec<NetworkConnectionRecord>, String> {
+    let _guard = lock_connections()?;
     let path = connections_file_path(app)?;
-    let normalized = normalize_connection(&connection)?;
+    let mut normalized = normalize_connection(&connection)?;
+    // The certificate is managed by the TLS probe, never by a frontend copy of the record.
+    normalized.tls_certificate_der = None;
     let mut connections: Vec<NetworkConnectionRecord> = json_io::read_json_or_default(&path)?;
 
     if let Some(index) = connections.iter().position(|item| item.id == normalized.id) {
+        if normalized.base_url == connections[index].base_url {
+            normalized.tls_certificate_der = connections[index].tls_certificate_der.clone();
+        }
         connections[index] = normalized;
     } else {
         connections.push(normalized);
@@ -101,10 +134,39 @@ pub fn save_network_connection(
     Ok(connections)
 }
 
+pub(crate) fn save_tls_certificate(
+    app: &tauri::AppHandle,
+    connection_id: &str,
+    expected_base_url: &str,
+    certificate_der: &str,
+) -> Result<(), String> {
+    let _guard = lock_connections()?;
+    let path = connections_file_path(app)?;
+    let mut connections: Vec<NetworkConnectionRecord> = json_io::read_json_or_default(&path)?;
+    let connection = connections
+        .iter_mut()
+        .find(|connection| connection.id == connection_id)
+        .ok_or_else(|| format!("Connection {connection_id} not found"))?;
+    if connection.base_url != expected_base_url {
+        return Err(
+            "WebDAV connection changed while its certificate was being inspected".to_string(),
+        );
+    }
+    if let Some(existing) = connection.tls_certificate_der.as_deref() {
+        if existing == certificate_der {
+            return Ok(());
+        }
+        return Err("WebDAV server certificate changed; connection was stopped".to_string());
+    }
+    connection.tls_certificate_der = Some(certificate_der.to_string());
+    json_io::write_json(&path, &connections)
+}
+
 pub fn delete_network_connection(
     app: &tauri::AppHandle,
     connection_id: &str,
 ) -> Result<Vec<NetworkConnectionRecord>, String> {
+    let _guard = lock_connections()?;
     let path = connections_file_path(app)?;
     let mut connections: Vec<NetworkConnectionRecord> = json_io::read_json_or_default(&path)?;
     connections.retain(|item| item.id != connection_id);
@@ -123,7 +185,44 @@ pub fn find_network_connection(
 }
 
 pub fn clear_network_connections(app: &tauri::AppHandle) -> Result<(), String> {
+    let _guard = lock_connections()?;
     let path = connections_file_path(app)?;
     let empty_connections: Vec<NetworkConnectionRecord> = Vec::new();
     json_io::write_json(&path, &empty_connections)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{normalize_connection, NetworkConnectionRecord};
+
+    fn record(protocol: &str, base_url: &str) -> NetworkConnectionRecord {
+        NetworkConnectionRecord {
+            id: "connection".to_string(),
+            label: "Server".to_string(),
+            protocol: protocol.to_string(),
+            base_url: base_url.to_string(),
+            username: String::new(),
+            password: String::new(),
+            default_path: "/".to_string(),
+            tls_certificate_der: None,
+        }
+    }
+
+    #[test]
+    fn adds_the_default_scheme_to_http_based_urls() {
+        let webdav = normalize_connection(&record("webdav", " 192.168.31.25:5244/dav ")).unwrap();
+        assert_eq!(webdav.base_url, "http://192.168.31.25:5244/dav");
+
+        let dlna = normalize_connection(&record("http-dlna", "nas:8200/MediaServer")).unwrap();
+        assert_eq!(dlna.base_url, "http://nas:8200/MediaServer");
+    }
+
+    #[test]
+    fn leaves_other_protocols_untouched() {
+        let smb = normalize_connection(&record("smb", "smb://nas/media")).unwrap();
+        assert_eq!(smb.base_url, "smb://nas/media");
+
+        let ftp = normalize_connection(&record("ftp", "ftp://nas:2121")).unwrap();
+        assert_eq!(ftp.base_url, "ftp://nas:2121");
+    }
 }

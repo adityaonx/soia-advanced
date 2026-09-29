@@ -12,6 +12,7 @@ const PROPFIND_BODY: &str = r#"<?xml version="1.0" encoding="utf-8"?>
     <d:resourcetype/>
     <d:getcontentlength/>
     <d:getlastmodified/>
+    <d:creationdate/>
   </d:prop>
 </d:propfind>"#;
 
@@ -37,6 +38,7 @@ pub struct WebdavBrowseEntry {
     pub is_dir: bool,
     pub size: Option<u64>,
     pub modified_at: Option<String>,
+    pub created_at: Option<String>,
 }
 
 pub struct WebdavBrowseResult {
@@ -94,8 +96,9 @@ fn normalize_playback_url_path(url: &mut Url) {
 }
 
 fn parse_base_url(connection: &NetworkConnectionRecord) -> Result<Url, String> {
+    let normalized_base_url = super::normalize_http_base_url(&connection.base_url);
     let mut url =
-        Url::parse(connection.base_url.trim()).map_err(|e| format!("Invalid WebDAV URL: {}", e))?;
+        Url::parse(&normalized_base_url).map_err(|e| format!("Invalid WebDAV URL: {}", e))?;
     if url.scheme() != "http" && url.scheme() != "https" {
         return Err("WebDAV URL must start with http:// or https://".into());
     }
@@ -199,22 +202,53 @@ pub async fn list_directory(
     let normalized_path = normalize_path(path);
     let target_url = build_target_url(&base_url, &root_segments, &normalized_path)?;
 
-    let client = crate::network::proxy::configure_client_builder(
-        app,
-        reqwest::Client::builder().timeout(Duration::from_secs(15)),
-    )?
-    .build()
-        .map_err(|e| e.to_string())?;
     let propfind = Method::from_bytes(b"PROPFIND").map_err(|e| e.to_string())?;
-    let request = client
-        .request(propfind, target_url.clone())
-        .header("Depth", "1")
-        .header("Content-Type", "application/xml; charset=utf-8")
-        .body(PROPFIND_BODY.to_string());
-    let response = apply_auth(request, connection)
+    let send = |client: &reqwest::Client| {
+        apply_auth(
+            client
+                .request(propfind.clone(), target_url.clone())
+                .header("Depth", "1")
+                .header("Content-Type", "application/xml; charset=utf-8")
+                .body(PROPFIND_BODY.to_string()),
+            connection,
+        )
         .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    };
+    let build_client = |certificate: Option<&str>| -> Result<reqwest::Client, String> {
+        let builder = reqwest::Client::builder()
+            .timeout(Duration::from_secs(15))
+            .redirect(crate::network::tls::no_tls_downgrade_redirects());
+        let builder = crate::network::tls::configure_pinned_client_builder(builder, certificate)?;
+        let builder = if certificate.is_some() {
+            builder
+        } else {
+            crate::network::proxy::configure_client_builder(app, builder)?
+        };
+        builder
+            .build()
+            .map_err(|error| error.to_string())
+    };
+    let client = build_client(connection.tls_certificate_der.as_deref())?;
+    let response = match send(&client).await {
+        Ok(response) => response,
+        Err(error)
+            if connection.tls_certificate_der.is_none()
+                && base_url.scheme() == "https"
+                && crate::network::tls::is_certificate_error(&error) =>
+        {
+            let strict_error = error.to_string();
+            let certificate = crate::network::tls::trust_local_certificate(
+                app,
+                connection,
+                &target_url,
+            )
+            .await
+            .map_err(|trust_error| format!("{strict_error}; {trust_error}"))?;
+            let client = build_client(Some(&certificate))?;
+            send(&client).await.map_err(|error| error.to_string())?
+        }
+        Err(error) => return Err(error.to_string()),
+    };
 
     let status = response.status();
     if !status.is_success() {
@@ -259,6 +293,7 @@ pub async fn list_directory(
         let size =
             node_text(response_node, "getcontentlength").and_then(|value| value.parse().ok());
         let modified_at = node_text(response_node, "getlastmodified");
+        let created_at = node_text(response_node, "creationdate");
 
         entries.push(WebdavBrowseEntry {
             name,
@@ -266,6 +301,7 @@ pub async fn list_directory(
             is_dir,
             size,
             modified_at,
+            created_at,
         });
     }
 
@@ -290,4 +326,54 @@ pub fn build_playback_url(
     let mut target_url = build_target_url(&base_url, &root_segments, file_path)?;
     normalize_playback_url_path(&mut target_url);
     Ok(target_url.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_playback_url, parse_base_url};
+    use crate::store::network_connection_store::NetworkConnectionRecord;
+
+    fn connection(base_url: &str) -> NetworkConnectionRecord {
+        NetworkConnectionRecord {
+            id: "connection".to_string(),
+            label: "WebDAV".to_string(),
+            protocol: "webdav".to_string(),
+            base_url: base_url.to_string(),
+            username: String::new(),
+            password: String::new(),
+            default_path: "/".to_string(),
+            tls_certificate_der: None,
+        }
+    }
+
+    #[test]
+    fn keeps_custom_ports_when_the_scheme_is_missing() {
+        for base_url in ["192.168.31.25:5244/dav", "nas:5244/dav", "nas.local:5244"] {
+            let url = parse_base_url(&connection(base_url))
+                .unwrap_or_else(|error| panic!("{base_url}: {error}"));
+            assert_eq!(url.scheme(), "http");
+            assert_eq!(url.port(), Some(5244));
+        }
+    }
+
+    #[test]
+    fn keeps_explicit_schemes_and_ports() {
+        let url = parse_base_url(&connection("https://example.com:8443/webdav")).unwrap();
+        assert_eq!(url.scheme(), "https");
+        assert_eq!(url.port(), Some(8443));
+        assert_eq!(url.path(), "/webdav");
+    }
+
+    #[test]
+    fn rejects_non_http_schemes() {
+        let error = parse_base_url(&connection("smb://nas/media")).unwrap_err();
+        assert!(error.contains("http://"), "unexpected error: {error}");
+    }
+
+    #[test]
+    fn playback_url_keeps_the_custom_port() {
+        let url = build_playback_url(&connection("192.168.31.25:5244/dav"), "/movies/a b[1].mkv")
+            .unwrap();
+        assert_eq!(url, "http://192.168.31.25:5244/dav/movies/a%20b%5B1%5D.mkv");
+    }
 }

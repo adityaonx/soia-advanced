@@ -6,6 +6,7 @@ import {
     defaultSettingGroups,
     IMAGE_DISPLAY_DURATION_SETTING_LABEL,
     LOG_LEVEL_SETTING_LABEL,
+    MPV_CONFIG_PATH_SETTING_LABEL,
     LOG_PATH_SETTING_LABEL,
     NETWORK_PARALLEL_DOWNLOAD_SETTING_LABEL,
     PROXY_ADDRESS_SETTING_LABEL,
@@ -26,15 +27,17 @@ import {
     applyStreamProxySettings,
     applyYtdlSettings,
     openLogDirectory,
+    saveUiState,
 } from "../useUiStateStore";
+import {
+    getSettingsLocale,
+    translateSettingsText,
+} from "../../i18n";
 
 export type StoredSettingItem = { label: string; value: string };
 export type StoredSettingGroup = { title: string; items: StoredSettingItem[] };
 
-const DEV_ONLY_SETTING_LABELS = new Set([
-    PROXY_MODE_SETTING_LABEL,
-    PROXY_ADDRESS_SETTING_LABEL,
-]);
+const DEV_ONLY_SETTING_LABELS = new Set<string>();
 
 const normalizeLogLevel = (value: string): string | null => {
     const trimmed = value.trim();
@@ -283,7 +286,9 @@ export const useGeneralSettingsSection = (isWindowsPlatform: boolean) => {
     let lastAppliedImageDurationRequestKey: string | null = null;
     let lastAppliedStreamProxyRequestKey: string | null = null;
     let lastWallpaperModeValue: string | null = null;
+    let lastMpvConfigPathValue: string | null = null;
     let isWallpaperRestartPromptOpen = false;
+    let isMpvConfigRestartPromptOpen = false;
 
     const isFixedLogPathItem = (item: SettingItem): boolean =>
         item.type === "path" && item.label === LOG_PATH_SETTING_LABEL;
@@ -570,12 +575,15 @@ export const useGeneralSettingsSection = (isWindowsPlatform: boolean) => {
         isWallpaperRestartPromptOpen = true;
         try {
             const shouldRelaunch = await confirm(
-                "Wallpaper Mode change will take effect after restart. Restart now?",
+                translateSettingsText(
+                    getSettingsLocale(),
+                    "Wallpaper Mode change will take effect after restart. Restart now?",
+                ),
                 {
-                    title: "Restart Required",
+                    title: translateSettingsText(getSettingsLocale(), "Restart Required"),
                     kind: "info",
-                    okLabel: "Restart now",
-                    cancelLabel: "Later",
+                    okLabel: translateSettingsText(getSettingsLocale(), "Restart now"),
+                    cancelLabel: translateSettingsText(getSettingsLocale(), "Later"),
                 },
             );
             if (shouldRelaunch) {
@@ -585,6 +593,43 @@ export const useGeneralSettingsSection = (isWindowsPlatform: boolean) => {
             // Ignore dialog/relaunch errors and keep current runtime session.
         } finally {
             isWallpaperRestartPromptOpen = false;
+        }
+    };
+
+    const maybePromptMpvConfigRestart = async () => {
+        if (isMpvConfigRestartPromptOpen) return;
+
+        const currentValue = settingGroups.value
+            .flatMap((group) => group.items)
+            .find((item) => item.label === MPV_CONFIG_PATH_SETTING_LABEL)
+            ?.value.trim() ?? "";
+        if (currentValue === lastMpvConfigPathValue) return;
+
+        lastMpvConfigPathValue = currentValue;
+        isMpvConfigRestartPromptOpen = true;
+        try {
+            const shouldRelaunch = await confirm(
+                translateSettingsText(
+                    getSettingsLocale(),
+                    "mpv config change will take effect after restart. Restart now?",
+                ),
+                {
+                    title: translateSettingsText(getSettingsLocale(), "Restart Required"),
+                    kind: "info",
+                    okLabel: translateSettingsText(getSettingsLocale(), "Restart now"),
+                    cancelLabel: translateSettingsText(getSettingsLocale(), "Later"),
+                },
+            );
+            if (shouldRelaunch) {
+                await saveUiState({
+                    settings: { groups: toPersistedGroups(settingGroups.value) },
+                });
+                await relaunch();
+            }
+        } catch {
+            // Keep the selected path and let the user restart later.
+        } finally {
+            isMpvConfigRestartPromptOpen = false;
         }
     };
 
@@ -601,7 +646,14 @@ export const useGeneralSettingsSection = (isWindowsPlatform: boolean) => {
         const selected = await open({
             multiple: false,
             directory: false,
-            title: item.browseTitle ?? "Select file",
+            title: translateSettingsText(
+                getSettingsLocale(),
+                item.browseTitle ?? "Select file",
+            ),
+            filters:
+                item.label === MPV_CONFIG_PATH_SETTING_LABEL
+                    ? [{ name: "mpv config", extensions: ["conf"] }]
+                    : undefined,
         });
         if (selected) {
             item.value = selected as string;
@@ -619,6 +671,7 @@ export const useGeneralSettingsSection = (isWindowsPlatform: boolean) => {
         scheduleApplyImageDurationOptions();
         scheduleApplyStreamProxyOptions();
         void maybePromptWallpaperModeRestart();
+        void maybePromptMpvConfigRestart();
     };
 
     const resetGeneralSettings = () => {
@@ -632,6 +685,10 @@ export const useGeneralSettingsSection = (isWindowsPlatform: boolean) => {
         await initializeStorageBackedOptions(groups);
         settingGroups.value = groups;
         lastWallpaperModeValue = findWallpaperModeValue(groups);
+        lastMpvConfigPathValue = groups
+            .flatMap((group) => group.items)
+            .find((item) => item.label === MPV_CONFIG_PATH_SETTING_LABEL)
+            ?.value.trim() ?? "";
         applyVisualSettings(settingGroups.value);
     };
 

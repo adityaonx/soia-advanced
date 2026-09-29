@@ -91,6 +91,7 @@ const {
 } = useSurroundSound();
 
 const clearNavSelectionDuringLoad = ref(false);
+const isCastPopoverOpen = ref(false);
 const playbackLoadingState = usePlaybackLoadingState();
 const { isLoading, loadingUrl } = playbackLoadingState;
 const playlistCreationPrompt = usePlaylistCreationPrompt();
@@ -184,10 +185,12 @@ const {
     seekOverlayRightText,
     seekOverlayLeftTimelineText,
     volumeOverlayText,
+    zoomOverlayText,
     seekOverlayLeftPulseToken,
     seekOverlayRightPulseToken,
     showSeekOverlay,
     showVolumeOverlay,
+    showZoomOverlay,
 } = usePlaybackOverlays({
     player,
     isLoading,
@@ -284,6 +287,21 @@ const {
     loadingUrl,
 });
 
+// mpv video-zoom is in log2 scale units: 0 = 1×, 1 = 2×, -1 = 0.5×
+// We keep a linear scale in usePlaybackShortcuts and convert here.
+const currentZoom = ref(1.0);
+const onZoom = async (linearScale: number) => {
+    currentZoom.value = linearScale;
+    showZoomOverlay(linearScale);
+    await adjustments.setCropZoom(linearScale, adjustments.currentCropRatio.value);
+};
+
+const onSetAspectRatio = async (ratio: string) => {
+    await invoke("mpv_run_command", {
+        args: ["set", "video-aspect-override", ratio],
+    });
+};
+
 const { onKeydown, onDoubleClick: onPlaybackAreaDoubleClick } = usePlaybackShortcuts(
     {
         state: player.state,
@@ -319,6 +337,7 @@ const isPlaybackMenuOpen = () =>
     playbackContextMenu.isOpen.value ||
     isInfoOpen.value ||
     isPlaylistOpen.value ||
+    isCastPopoverOpen.value ||
     tracks.showAudioMenu.value ||
     tracks.showSubMenu.value ||
     tracks.showSubtitleAdvancedSettings.value ||
@@ -459,10 +478,11 @@ const {
 const onFileLoaded = async () => {
     await onFileLoadedBase();
     if (subtitlesDisabled.value) {
-        await tracks.setSubtitlesDisabled(true);
+        subtitleAppearance.forceDisableSubtitles();
     }
     await adjustments.applyColorAdjustmentsForMedia(player.state.media.url);
     await applySurroundForMedia(player.state.media.url);
+    await adjustments.applyCropZoomForMedia(player.state.media.url);
     await subtitleAppearance.applySubtitleAppearanceOptions();
 };
 
@@ -596,6 +616,7 @@ useAppStartupBindings({
             @open-file-picker="requestOpenFilePicker"
             @toggle-info="toggleInfo"
             @toggle-playlist="togglePlaylist"
+            @cast-popover-toggle="isCastPopoverOpen = $event"
             @url-input-mousedown="onDragRegionMouseDown"
             @url-input-touchstart="onDragRegionTouchStart"
         />
@@ -612,6 +633,7 @@ useAppStartupBindings({
             :seek-overlay-right-text="seekOverlayRightText"
             :seek-overlay-left-timeline-text="seekOverlayLeftTimelineText"
             :volume-overlay-text="volumeOverlayText"
+            :zoom-overlay-text="zoomOverlayText"
             :hide-seek-timeline="ui.showControls.value"
             :seek-overlay-left-pulse-token="seekOverlayLeftPulseToken"
             :seek-overlay-right-pulse-token="seekOverlayRightPulseToken"
@@ -709,6 +731,7 @@ useAppStartupBindings({
             :status-badges="statusBadges"
             :audio-passthrough-active="isPassthroughActive"
             :current-speed="speed.currentSpeed.value"
+            :current-zoom="currentZoom"
             :playback-rates="speed.playbackRates"
             :show-speed-menu="speed.showSpeedMenu.value"
             :show-settings-menu="adjustments.showSettingsMenu.value"
@@ -723,6 +746,9 @@ useAppStartupBindings({
             :hue="adjustments.hue.value"
             :global-color-adjustments-enabled="
                 adjustments.globalColorAdjustmentsEnabled.value
+            "
+            :global-crop-zoom-enabled="
+                adjustments.globalCropZoomEnabled.value
             "
             :is-loop-one="isLoopOne"
             :audio-tracks="tracks.audioTracks.value"
@@ -752,6 +778,8 @@ useAppStartupBindings({
             @toggle-menu="toggleMenu"
             @toggle-loop-one="toggleLoopOne"
             @set-speed="onSetSpeed"
+            @set-zoom="onZoom"
+            @set-aspect-ratio="onSetAspectRatio"
             @set-speed-continuously="speed.setSpeedContinuously"
             @set-volume="onSetVolume"
             @toggle-muted="onToggleMuted"
@@ -770,6 +798,12 @@ useAppStartupBindings({
             @set-global-color-adjustments-enabled="
                 adjustments.setGlobalColorAdjustmentsEnabled
             "
+            @set-global-crop-zoom-enabled="
+                adjustments.setGlobalCropZoomEnabled
+            "
+            @update-crop-zoom="
+                (payload) => adjustments.setCropZoom(payload.zoom, payload.ratio)
+            "
             @select-audio="tracks.selectAudio"
             @select-sub-track="tracks.selectSubTrack"
             @set-active-sub-target="tracks.setActiveSubTarget"
@@ -787,7 +821,8 @@ useAppStartupBindings({
                 tracks.showAudioMenu.value ||
                 tracks.showSubMenu.value ||
                 speed.showSpeedMenu.value ||
-                adjustments.showSettingsMenu.value
+                adjustments.showSettingsMenu.value ||
+                isCastPopoverOpen
             "
             @toggle="togglePlaylist"
         />

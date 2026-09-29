@@ -6,11 +6,14 @@ use std::sync::{Arc, Mutex};
 
 mod app_bootstrap;
 mod audio_output;
+mod casting;
 pub mod protocol;
 mod core;
+mod ffmpeg;
 mod check_update;
 mod commands;
 mod media_extensions;
+mod media_gateway;
 mod mpv;
 mod network;
 mod online_subtitles;
@@ -19,6 +22,7 @@ mod playback_source;
 mod remote_control;
 mod shader_pipeline;
 mod subtitles;
+mod ytdlp;
 use mpv::MpvHandle;
 use tauri::{Emitter, Listener, Manager};
 mod store;
@@ -37,6 +41,7 @@ pub struct AppState {
     pub(crate) playback_command_lock: tokio::sync::Mutex<()>,
     pub(crate) playback_state: core::state::PlaybackStatePublisher,
     pub(crate) playback_service: core::playback_service::PlaybackService,
+    pub(crate) casting_service: casting::CastingService,
     pub(crate) playback_load_coordinator: core::playback_loading::PlaybackLoadCoordinator,
     pub(crate) navigation_service: core::navigation::NavigationService,
     pub(crate) playlist_service: core::playlist_service::PlaylistService,
@@ -256,12 +261,12 @@ fn mpv_command_checked(mpv: &MpvHandle, args: &[&str]) -> AppResult<()> {
     let download_speed_activation = if loadfile_replaces_current(&command_args) {
         command_args
             .get(1)
-            .map(|url| crate::mpv::begin_download_speed_activation(url))
+            .map(|url| crate::media_gateway::begin_download_speed_activation(url))
     } else {
         None
     };
     let download_speed_generation = if command_args.first().copied() == Some("seek") {
-        crate::mpv::begin_download_speed_generation()
+        crate::media_gateway::begin_download_speed_generation()
     } else {
         None
     };
@@ -286,12 +291,12 @@ fn mpv_command_checked(mpv: &MpvHandle, args: &[&str]) -> AppResult<()> {
 fn mpv_command_direct_checked(mpv: &MpvHandle, args: &[&str]) -> AppResult<()> {
     let download_speed_activation = if loadfile_replaces_current(args) {
         args.get(1)
-            .map(|url| crate::mpv::begin_download_speed_activation(url))
+            .map(|url| crate::media_gateway::begin_download_speed_activation(url))
     } else {
         None
     };
     let download_speed_generation = if args.first().copied() == Some("seek") {
-        crate::mpv::begin_download_speed_generation()
+        crate::media_gateway::begin_download_speed_generation()
     } else {
         None
     };
@@ -369,16 +374,16 @@ fn rewrite_mpv_command_urls(args: &[&str]) -> Option<Vec<String>> {
         return None;
     }
 
-    if crate::mpv::is_stream_proxy_url(args[1]) {
+    if crate::media_gateway::is_loopback_media_url(args[1]) {
         return Some(args.iter().map(|arg| (*arg).to_string()).collect());
     }
 
-    // Remote protocol credentials, headers, cookies, and connection state belong in stream_proxy
+    // Remote protocol credentials, headers, cookies, and connection state belong in media_gateway
     // backends. mpv should receive only localhost token URLs so secrets do not leak into mpv
     // command logs, options, or protocol-specific URL handling.
-    let rewritten_url = crate::mpv::rewrite_http_stream_url(args[1])
-        .or_else(|| crate::mpv::rewrite_https_stream_url(args[1]))
-        .or_else(|| crate::mpv::rewrite_smb_stream_url(args[1]))
+    let rewritten_url = crate::media_gateway::create_loopback_http_media_url(args[1])
+        .or_else(|| crate::media_gateway::create_loopback_https_media_url(args[1]))
+        .or_else(|| crate::media_gateway::create_loopback_smb_media_url(args[1]))
         .or_else(|| crate::mpv::rewrite_https_callback_url(args[1]))?;
     let mut rewritten: Vec<String> = args.iter().map(|arg| (*arg).to_string()).collect();
     rewritten[1] = rewritten_url;
@@ -488,14 +493,33 @@ fn queue_open_media_paths(app: &tauri::AppHandle, paths: Vec<String>, emit_event
 }
 
 fn handle_run_event(app_handle: &tauri::AppHandle, event: tauri::RunEvent) {
-    #[cfg(any(target_os = "macos", target_os = "ios"))]
-    if let tauri::RunEvent::Opened { urls } = event {
-        let paths = collect_open_media_paths_from_urls(urls);
-        queue_open_media_paths(app_handle, paths, true);
+    match event {
+        tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
+            cleanup_casting_on_exit(app_handle);
+        }
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
+        tauri::RunEvent::Opened { urls } => {
+            let paths = collect_open_media_paths_from_urls(urls);
+            queue_open_media_paths(app_handle, paths, true);
+        }
+        _ => {}
     }
+}
 
-    #[cfg(not(any(target_os = "macos", target_os = "ios")))]
-    let _ = (app_handle, event);
+fn cleanup_casting_on_exit(app_handle: &tauri::AppHandle) {
+    let Some(state) = app_handle.try_state::<AppState>() else {
+        return;
+    };
+    state.casting_service.revoke_active_media_lease();
+    let app = app_handle.clone();
+    tauri::async_runtime::spawn(async move {
+        let state: tauri::State<'_, AppState> = app.state();
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_millis(500),
+            state.casting_service.disconnect(),
+        )
+        .await;
+    });
 }
 
 #[cfg(desktop)]
@@ -572,6 +596,11 @@ pub fn run() {
             commands::playback::consume_pending_open_files,
             commands::playback::execute_playback_command,
             commands::playback::get_playback_snapshot,
+            commands::casting::get_cast_snapshot,
+            commands::casting::get_cast_devices,
+            commands::casting::discover_cast_devices,
+            commands::casting::connect_cast_device,
+            commands::casting::disconnect_casting,
             commands::playlist::get_playlist_snapshot,
             commands::playlist::get_playlist_entries_page,
             commands::playlist::play_playlist_entry,

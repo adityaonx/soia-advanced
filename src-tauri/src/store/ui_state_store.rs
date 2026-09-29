@@ -89,15 +89,17 @@ impl UiState {
             settings: incoming.settings.or(self.settings),
             rendering: incoming.rendering.or(self.rendering),
             audio: incoming.audio.or(self.audio),
-            surround_sound: match (self.surround_sound, incoming.surround_sound) {
+surround_sound: match (self.surround_sound, incoming.surround_sound) {
                 (Some(curr), Some(inc)) => Some(curr.merge(inc)),
                 (None, Some(inc)) => Some(inc),
                 (Some(curr), None) => Some(curr),
                 (None, None) => None,
             },
-            playback_adjustments: incoming
-                .playback_adjustments
-                .or(self.playback_adjustments),
+            playback_adjustments: match (self.playback_adjustments, incoming.playback_adjustments) {
+                (Some(curr), Some(inc)) => Some(curr.merge(inc)),
+                (None, inc) => inc,
+                (curr, None) => curr,
+            },
             playback: incoming.playback.or(self.playback),
             subtitle_appearance: incoming.subtitle_appearance.or(self.subtitle_appearance),
             playlist: incoming.playlist.or(self.playlist),
@@ -131,6 +133,38 @@ pub struct PlaybackAdjustmentsState {
     pub global_color_adjustments_enabled: Option<bool>,
     #[serde(default)]
     pub global_color_adjustments: Option<ColorAdjustmentsState>,
+    #[serde(default)]
+    pub global_crop_zoom_enabled: Option<bool>,
+    #[serde(default)]
+    pub global_crop_zoom: Option<CropZoomState>,
+}
+
+impl PlaybackAdjustmentsState {
+    fn merge(self, incoming: PlaybackAdjustmentsState) -> PlaybackAdjustmentsState {
+        PlaybackAdjustmentsState {
+            global_color_adjustments_enabled: incoming
+                .global_color_adjustments_enabled
+                .or(self.global_color_adjustments_enabled),
+            global_color_adjustments: incoming
+                .global_color_adjustments
+                .or(self.global_color_adjustments),
+            global_crop_zoom_enabled: incoming
+                .global_crop_zoom_enabled
+                .or(self.global_crop_zoom_enabled),
+            global_crop_zoom: incoming
+                .global_crop_zoom
+                .or(self.global_crop_zoom),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CropZoomState {
+    #[serde(default)]
+    pub zoom: Option<f64>,
+    #[serde(default)]
+    pub ratio: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -233,6 +267,10 @@ pub struct NetworkState {
     pub selected_connection: Option<String>,
     #[serde(default)]
     pub path: Option<String>,
+    #[serde(default)]
+    pub sort_field: Option<String>,
+    #[serde(default)]
+    pub sort_direction: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]

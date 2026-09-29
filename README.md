@@ -13,56 +13,68 @@
 <b><a href="https://github.com/FengZeng/soia/releases">⬇️ Download Latest Release</a> · <a href="https://github.com/FengZeng/soia/issues">🐞 Report a Bug</a></b>
 </p>
 
+English · [简体中文](README.zh-CN.md)
+
 ![Soia App Preview](docs/assets/screenshots/Soia.webp)
-> An mpv-powered video player with network streaming and browser-based remote control.
 
-**Soia** is a high-performance video player built on mpv, designed for smooth playback of everything from local Dolby Vision content to remote WebDAV, DLNA, and SMB streams — all in one fast, elegant, cross-platform experience.
+**Soia** is a cross-platform media player built on mpv, focused on video rendering and network playback, with features such as browser-based remote control and casting.
 
-## ✨ Key Features
+---
 
-### High-Performance Playback
+## Why Soia?
 
-- **mpv-powered playback** with hardware acceleration (4K, HDR, Dolby Vision*)
-- Picture in Picture (PiP) on macOS and Windows
-- Dual subtitles for bilingual viewing
-- Fuzzy subtitle matching for both local and network media
-- Online subtitle search via OpenSubtitles and SubSource
-- Advanced subtitle appearance controls for font, color, size, and position
-- Custom shaders for high-quality scaling and rendering
-- Anime mode with auto-detection and shader auto-apply
+### 1. Dolby Vision on macOS and Windows
 
-<sub style="padding-left: 2em;">*Dolby Vision is not currently supported on Linux*</sub>
+<sub style="padding-left: 2em;">*Dolby Vision is not currently supported on Linux.*</sub>
 
-### Streaming & Remote Media
+### 2. Enhanced online video support (YouTube, Bilibili, and more)
 
-- WebDAV browsing and streaming
-- DLNA and SMB/Samba discovery, browsing, and playback
-- M3U (IPTV) parsing and playback
-- Persistent playlists, including a built-in Favorites playlist
-- Smart buffering with real-time speed indicators
-- Resume playback with history tracking
+- Import a YouTube playlist into Soia as a native playlist.
+- Some links that do not play in other mpv-based players may still work in Soia.
+- Parallel downloads help keep online playback smooth, especially on less stable connections.
 
-### Web Browser Remote Controller
+### 3. Stream from your network library
 
-- Control Soia playback from a web browser on the same local network
-- Play, pause, seek, adjust volume, and select audio or subtitle tracks remotely
-- Browse and play playlists or configured WebDAV, DLNA, and SMB media sources
-- Continue network browsing from the folder last opened in the desktop app
-- Enable Remote Controller in Settings, then show its QR code there or from the playback context menu to pair and connect in seconds
-- Pair multiple remote devices to control the same player together
+Browse and play video streams from DLNA, SMB/Samba, and WebDAV sources without first downloading them to your computer.
+
+### 4. Cast what you are watching
+
+Cast the currently playing video — whether it is a local file or an online or network stream from DLNA, SMB, WebDAV, or YouTube — to a DLNA receiver or Chromecast device.
+
+> **Note:** Keep Soia running while casting. Soia relays the media stream between the source and the receiver.
+
+### 5. A browser-based remote controller
+
+Scan a QR code to connect a phone or another browser in seconds. The remote controller supports:
+
+- Basic playback controls such as play, pause, seek, and volume
+- Playlist browsing and playback
+- Network browsing and playback
+- Audio and subtitle track selection
+
+Enable Remote Controller in Settings, then show its QR code there or from the playback context menu to pair and connect. Multiple remote devices can control the same player together.
 
 ![Web Remote Controller](docs/assets/screenshots/remote-controller.webp)
 
-Both interfaces are equal clients of the same backend:
+#### Under the hood
+
+The desktop app and web remote are two independent clients of the same playback backend.
 
 ![Shared Backend Architecture](docs/assets/diagrams/shared-backend.webp)
 
-### Native Experience
+## More playback tools
 
-- Native media keys and Now Playing integration (macOS)
-- Borderless window across macOS, Windows, and Linux (Wayland)
-- Experimental Wallpaper Mode (Windows)
-- Flexible playback preferences (speed, seek, auto-play, skip intro)
+- Picture in Picture (PiP) on macOS and Windows
+- Dual subtitles for bilingual viewing
+- Fuzzy subtitle matching
+- Online subtitle search via OpenSubtitles and SubSource
+- Advanced subtitle appearance controls for font, color, size, and position
+- Custom shaders for high-quality scaling and rendering
+- M3U (IPTV) parsing and playback
+- Smart buffering with real-time speed indicators
+- Resume playback with history tracking
+
+---
 
 ## Install
 
@@ -81,8 +93,8 @@ On Windows, you can install it with WinGet:
 winget install soia
 ```
 
-Or you can build it yourself. Support macOS 13+, Windows, and Linux.
-Linux builds have been tested on Ubuntu and Fedora Wayland sessions (`X11` is not currently supported).
+Or you can build it yourself. Soia supports macOS 13+, Windows, and Linux.
+> **Note:** The Linux build supports Wayland only and has been tested on Ubuntu and Fedora under Wayland.
 
 ## FAQ
 
@@ -97,7 +109,7 @@ Easy fix (recommended):
 
 If that doesn't work, run:
 ```bash
-sudo xattr -r -d com.apple.quarantine /Applications/Soia.app
+xattr -r -d com.apple.quarantine /Applications/Soia.app
 ```
 
 You can also go to System Settings -> Privacy & Security and click "Open Anyway" (it appears after a blocked launch attempt).
@@ -135,6 +147,7 @@ The app is open-source and its code is publicly available for anyone to inspect.
    # Launches with auto-injected library paths
    pnpm tauri dev
    ```
+
 ## Build and Bundle
 
 Common release build commands:
@@ -168,7 +181,7 @@ Saved network credentials are currently persisted in `network_connections.json` 
 
 ## Troubleshooting
 
-- If Linux build fails with `glib-2.0` / `gdk-3.0` / `*.pc` not found, install the Ubuntu deps:
+- If a Linux build fails with `glib-2.0` / `gdk-3.0` / `*.pc` not found, install the Ubuntu dependencies:
 
 ```bash
 sudo apt update
@@ -184,7 +197,7 @@ sudo apt install -y \
     libwebkit2gtk-4.1-dev
 ```
 
-- Linux runtime note: current bundle targets Ubuntu Wayland sessions only; launching under pure `X11` is not supported.
+- Linux runtime note: the current build supports Wayland only and has been tested on Ubuntu and Fedora Wayland sessions; launching under pure `X11` is not supported.
 
 - If build fails with `Cannot find libmpv`, run:
 
@@ -193,7 +206,7 @@ pnpm setup:libs
 ```
 
 - If `pnpm setup:libs` fails, confirm release access to:
-  - `https://github.com/FengZeng/mpv/releases/tag/v0.41.0-r15`
+  - `https://github.com/FengZeng/mpv/releases/tag/v0.41.0-r20`
   - or set `MPV_RELEASE_ASSET_URL` to a direct asset URL and retry.
 
 - If Linux/Windows bundle scripts report missing runtime manifest, generate it on the target platform:
@@ -210,14 +223,6 @@ pnpm setup:libs /absolute/path/to/mpv-bundle
 ```
 
 ---
-
-## Author & Maintainer
-
-**Soia** is an independent project developed and maintained by **[@FengZeng](https://github.com/FengZeng)**.
-
-While development is driven independently, issues and feedback are actively reviewed and addressed whenever possible.
-
-If you find Soia useful, consider giving it a ⭐ Star — it helps the project grow and reach more users.
 
 ## License
 

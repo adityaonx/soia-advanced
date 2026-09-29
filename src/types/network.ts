@@ -8,6 +8,7 @@ export type NetworkConnection = {
     username: string;
     password: string;
     defaultPath: string;
+    tlsCertificateDer?: string | null;
 };
 
 export type NetworkBrowseEntry = {
@@ -17,6 +18,7 @@ export type NetworkBrowseEntry = {
     playbackKey?: string | null;
     size: number | null;
     modifiedAt: string | null;
+    createdAt: string | null;
 };
 
 export type NetworkBrowseResult = {
@@ -31,6 +33,8 @@ export type NetworkFileRow = {
     playbackKey?: string;
     size: string;
     modified: string;
+    modifiedAt?: string | null;
+    createdAt?: string | null;
     isParent?: boolean;
     playbackProgressText?: string;
     isActive?: boolean;

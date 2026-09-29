@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import ContextMenu from "./ContextMenu.vue";
+import CastDevicePopover from "./CastDevicePopover.vue";
 import type { MediaInfo } from "../mock/mediaInfo";
 import {
     SETTINGS_UPDATED_EVENT,
@@ -44,6 +45,7 @@ const emit = defineEmits<{
     (e: "open-file-picker"): void;
     (e: "toggle-info"): void;
     (e: "toggle-playlist"): void;
+    (e: "cast-popover-toggle", value: boolean): void;
     (e: "url-input-mousedown", event: MouseEvent): void;
     (e: "url-input-touchstart", event: TouchEvent): void;
 }>();
@@ -949,6 +951,11 @@ watch(
                     :items="urlContextMenuItems"
                     @select="onUrlContextMenuSelect"
                     @close="closeUrlContextMenu"
+                />
+
+                <CastDevicePopover
+                    :is-file-loaded="props.isFileLoaded"
+                    @update:open="emit('cast-popover-toggle', $event)"
                 />
 
                 <button
