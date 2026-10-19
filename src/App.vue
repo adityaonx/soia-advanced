@@ -35,6 +35,7 @@ import { usePlaylistCreationPrompt } from "./composables/usePlaylistCreationProm
 import { usePlaybackContextMenu } from "./composables/usePlaybackContextMenu";
 import { useRemoteControlQrDialog } from "./composables/useRemoteControlQrDialog";
 import { useAudioOutput } from "./composables/useAudioOutput";
+import { useSurroundSound } from "./composables/useSurroundSound";
 import { tauriCoreClient } from "./core-client/tauriPlaybackClient";
 import { tauriPlaylistSourceClient } from "./core-client/tauriPlaylistSourceClient";
 
@@ -64,6 +65,7 @@ const {
     isPipEnabled,
     schedulePointerRefresh,
     shouldKeepControlsVisible,
+    showSurroundMenu,
     hideAllMenus,
     toggleMenu,
     closeAllMenus,
@@ -81,6 +83,11 @@ const {
     setWindowControlsVisible,
     normalizeStoredPanel,
 } = useAppBootstrap(tauriCoreClient);
+
+const {
+    applySurroundForMedia,
+    reapplyFilters: reapplySurround,
+} = useSurroundSound();
 
 const clearNavSelectionDuringLoad = ref(false);
 const isCastPopoverOpen = ref(false);
@@ -472,6 +479,7 @@ const onFileLoaded = async () => {
         subtitleAppearance.forceDisableSubtitles();
     }
     await adjustments.applyColorAdjustmentsForMedia(player.state.media.url);
+    await applySurroundForMedia(player.state.media.url);
     await adjustments.applyCropZoomForMedia(player.state.media.url);
     await subtitleAppearance.applySubtitleAppearanceOptions();
 };
@@ -712,6 +720,7 @@ useAppStartupBindings({
             :playback-rates="speed.playbackRates"
             :show-speed-menu="speed.showSpeedMenu.value"
             :show-settings-menu="adjustments.showSettingsMenu.value"
+            :show-surround-menu="showSurroundMenu"
             :audio-delay="adjustments.audioDelay.value"
             :sub-delay="adjustments.subDelay.value"
             :secondary-sub-delay="adjustments.secondarySubDelay.value"
