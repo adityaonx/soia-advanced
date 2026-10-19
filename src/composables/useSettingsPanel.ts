@@ -235,7 +235,6 @@ export const useSettingsPanel = () => {
         refreshMediaAssociationStatus: mediaAssociation.refreshMediaAssociationStatus,
         setMediaAssociationToSoia: mediaAssociation.setMediaAssociationToSoia,
         installUpdate: update.installUpdate,
-        openProjectGithub: about.openProjectGithub,
         resetAllSettings,
         factoryReset,
         isFactoryResetInProgress,

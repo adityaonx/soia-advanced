@@ -13,13 +13,6 @@ import { getPathDisplayName } from "../utils/getPathDisplayName";
 import {
     ENABLE_COMPACT_MODE_SETTING_LABEL,
     LANGUAGE_SETTING_LABEL,
-    ONLINE_SUBTITLES_SETTING_GROUP_TITLE,
-    OPENSUBTITLES_API_KEY_SETTING_LABEL,
-    OPENSUBTITLES_ENABLED_SETTING_LABEL,
-    OPENSUBTITLES_LANGUAGES_SETTING_LABEL,
-    SUBSOURCE_API_KEY_SETTING_LABEL,
-    SUBSOURCE_ENABLED_SETTING_LABEL,
-    SUBSOURCE_LANGUAGES_SETTING_LABEL,
     WALLPAPER_MODE_SETTING_LABEL,
     type SettingItem,
     type SettingGroup,
@@ -41,24 +34,11 @@ const {
     isSetDefaultButtonLoading,
     setDefaultButtonText,
     isSetDefaultSuccess,
-    shouldShowUpdateButton,
-    isUpdateButtonDisabled,
-    updateButtonText,
-    isUpdateRetry,
-    shouldShowUpdateStatus,
-    updateStatusText,
-    shouldShowUpdateHint,
-    updateHintText,
-    openProjectGithub,
     isApplyingMediaAssociation,
     setMediaAssociationToSoia,
-    installUpdate,
     resetAllSettings,
     factoryReset,
     isFactoryResetInProgress,
-    clearDownloadedSubtitles,
-    isClearingOnlineSubtitleCache,
-    onlineSubtitleCacheStatus,
     browseForPath,
     browseForCustomShaders,
     selectedShaderFiles,
@@ -153,30 +133,6 @@ const shouldShowSettingItem = (item: SettingItem): boolean =>
 const visibleItems = (group: SettingGroup): SettingItem[] =>
     group.items.filter(shouldShowSettingItem);
 
-const onlineSubtitleTabs = [
-    {
-        id: "opensubtitles",
-        label: "OpenSubtitles",
-        itemLabels: [
-            OPENSUBTITLES_ENABLED_SETTING_LABEL,
-            OPENSUBTITLES_API_KEY_SETTING_LABEL,
-            OPENSUBTITLES_LANGUAGES_SETTING_LABEL,
-        ],
-    },
-    {
-        id: "subsource",
-        label: "SubSource",
-        itemLabels: [
-            SUBSOURCE_ENABLED_SETTING_LABEL,
-            SUBSOURCE_API_KEY_SETTING_LABEL,
-            SUBSOURCE_LANGUAGES_SETTING_LABEL,
-        ],
-    },
-] as const;
-const activeOnlineSubtitleTab = ref<(typeof onlineSubtitleTabs)[number]["id"]>(
-    "opensubtitles",
-);
-
 const remoteControlError = ref("");
 const isLoadingRemoteControl = ref(false);
 const remoteControlStatus = ref<RemoteControlStatus | null>(null);
@@ -236,18 +192,8 @@ const onRemoteQrKeydown = (event: KeyboardEvent) => {
     }
 };
 
-const visibleOnlineSubtitleItems = (group: SettingGroup): SettingItem[] => {
-    const activeTab =
-        onlineSubtitleTabs.find((tab) => tab.id === activeOnlineSubtitleTab.value) ??
-        onlineSubtitleTabs[0];
-    const labels = new Set<string>(activeTab.itemLabels);
-    return visibleItems(group).filter((item) => labels.has(item.label));
-};
-
 const displayedGroupItems = (group: SettingGroup): SettingItem[] =>
-    group.title === ONLINE_SUBTITLES_SETTING_GROUP_TITLE
-        ? visibleOnlineSubtitleItems(group)
-        : visibleItems(group);
+    visibleItems(group);
 
 const shouldShowGroup = (group: SettingGroup): boolean =>
     displayedGroupItems(group).length > 0;
@@ -328,35 +274,6 @@ onBeforeUnmount(() => {
         <div class="panel__header">
             <div class="panel__title">{{ tr("Settings") }}</div>
             <div class="panel__header-actions">
-                <div v-if="shouldShowUpdateStatus" class="panel__update-status" aria-live="polite">
-                    <span class="panel__spinner" aria-hidden="true"></span>
-                    <div class="panel__update-status-text">{{ tr(updateStatusText) }}</div>
-                </div>
-                <div v-if="shouldShowUpdateButton" class="panel__update-action-wrap">
-                    <span
-                        v-if="shouldShowUpdateHint"
-                        class="panel__update-hint"
-                    >
-                        {{ tr(updateHintText) }}
-                    </span>
-                    <button
-                        class="panel__action panel__action--glow panel__header-action panel__header-action--compact"
-                        type="button"
-                        :disabled="isUpdateButtonDisabled"
-                        @click="installUpdate"
-                    >
-                        <span
-                            v-if="isUpdateRetry"
-                            class="panel__status-icon panel__status-icon--failed"
-                            aria-hidden="true"
-                        >
-                            <svg class="panel__status-icon-svg" viewBox="0 0 20 20">
-                                <path d="M5.5 5.5l9 9M14.5 5.5l-9 9" />
-                            </svg>
-                        </span>
-                        <span>{{ tr(updateButtonText) }}</span>
-                    </button>
-                </div>
                 <button
                     v-if="shouldShowSetDefaultMediaButton"
                     class="panel__action panel__action--glow panel__header-action"
@@ -474,48 +391,6 @@ onBeforeUnmount(() => {
             >
                 <div class="panel__subtitle panel__subtitle--large">
                     {{ tr(group.title) }}
-                </div>
-                <div
-                    v-if="group.title === ONLINE_SUBTITLES_SETTING_GROUP_TITLE"
-                    class="panel__section-toolbar"
-                >
-                    <div
-                        class="panel__tabs"
-                        role="tablist"
-                        :aria-label="tr('Online subtitle providers')"
-                    >
-                        <button
-                            v-for="tab in onlineSubtitleTabs"
-                            :key="tab.id"
-                            class="panel__tab"
-                            :class="{
-                                'panel__tab--active': activeOnlineSubtitleTab === tab.id,
-                            }"
-                            type="button"
-                            role="tab"
-                            :aria-selected="activeOnlineSubtitleTab === tab.id"
-                            @click="activeOnlineSubtitleTab = tab.id"
-                        >
-                            {{ tab.label }}
-                        </button>
-                    </div>
-                    <div class="panel__toolbar-actions">
-                        <div
-                            v-if="onlineSubtitleCacheStatus"
-                            class="panel__cache-status"
-                            role="status"
-                        >
-                            {{ tr(onlineSubtitleCacheStatus) }}
-                        </div>
-                        <button
-                            class="panel__action panel__action--ghost panel__action--compact"
-                            type="button"
-                            :disabled="isClearingOnlineSubtitleCache"
-                            @click="clearDownloadedSubtitles"
-                        >
-                            {{ isClearingOnlineSubtitleCache ? tr("Clearing...") : tr("Clear Cache") }}
-                        </button>
-                    </div>
                 </div>
                 <div class="panel__table panel__table--card">
                     <div
@@ -934,25 +809,6 @@ onBeforeUnmount(() => {
                     {{ tr("About") }}
                 </div>
                 <div class="panel__table panel__table--card">
-                    <div class="panel__row panel__row--card" data-window-no-drag>
-                        <div class="panel__card-text">
-                            <div class="panel__card-title">{{ tr("GitHub") }}</div>
-                        </div>
-                        <div class="panel__control panel__control--card">
-                            <div class="panel__social-actions">
-                                <a
-                                    class="panel__link-button"
-                                    href="https://github.com/FengZeng/soia"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    data-window-no-drag
-                                    @click.prevent="openProjectGithub"
-                                >
-                                    https://github.com/FengZeng/soia
-                                </a>
-                            </div>
-                        </div>
-                    </div>
                     <div class="panel__row panel__row--card">
                         <div class="panel__card-text">
                             <div class="panel__card-title">{{ tr("Runtime") }}</div>

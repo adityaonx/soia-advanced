@@ -32,5 +32,5 @@ The app is open-source and its code is publicly available for anyone to inspect.
 * **Easier network address entry**
   WebDAV and HTTP DLNA addresses no longer require an explicit URL scheme. Addresses such as `nas.local:5244/dav` are automatically treated as HTTP URLs.
 
-* **Playback and settings cleanup** ([#33](https://github.com/FengZeng/soia/issues/33))
+* **Playback and settings cleanup** (#33)
   Fixed automatic audio track selection after playback stops, and removed the community link from Settings > About.

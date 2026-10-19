@@ -71,8 +71,7 @@ fn init_logging() {
     builder
         .filter_module("reqwest", log::LevelFilter::Warn)
         .filter_module("hyper", log::LevelFilter::Warn)
-        .filter_module("hyper_util", log::LevelFilter::Warn)
-        .filter_module("tauri_plugin_updater", log::LevelFilter::Warn);
+        .filter_module("hyper_util", log::LevelFilter::Warn);
     builder.format(|buf, record| {
         use std::io::Write;
 
@@ -564,10 +563,6 @@ pub fn run() {
     let mut builder = tauri::Builder::default()
         .manage(OpenFileState::default())
         .setup(|app| {
-            #[cfg(desktop)]
-            app.handle()
-                .plugin(tauri_plugin_updater::Builder::new().build())?;
-
             let startup_paths = collect_open_media_paths_from_args();
             queue_open_media_paths(&app.handle(), startup_paths, false);
             app_bootstrap::setup(app)?;

@@ -73,7 +73,6 @@ fn main() {
     } else {
         desktop_mpv_lib_dir
     };
-    let config_file = mpv_lib_dir.join("config.data");
 
     let windows_link_name = if mpv_lib_dir.join("mpv.lib").exists() {
         Some("mpv")
@@ -114,25 +113,7 @@ fn main() {
         );
     }
 
-    println!("cargo:rerun-if-env-changed=SOIA_API");
-    println!("cargo:rerun-if-changed={}", config_file.display());
-    let api = env::var("SOIA_API")
-        .ok()
-        .map(|v| v.trim().to_string())
-        .filter(|v| !v.is_empty())
-        .or_else(|| {
-            fs::read(&config_file).ok().and_then(|bytes| {
-                let data: Vec<u8> = bytes
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, b)| b ^ b"HTUA_AI0S"[i % 9])
-                    .collect();
-                String::from_utf8(data).ok()
-            })
-        })
-        .unwrap_or_else(|| String::new())
-        .replace('\r', "");
-    println!("cargo:rustc-env=SOIA_API={}", api);
+    println!("cargo:rustc-env=SOIA_API=");
 
     println!("cargo:rustc-link-search=native={}", mpv_lib_dir.display());
     if target_os == "windows" {

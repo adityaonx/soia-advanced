@@ -253,55 +253,6 @@ export const defaultSettingGroups: SettingGroup[] = [
             },
         ],
     },
-    {
-        title: ONLINE_SUBTITLES_SETTING_GROUP_TITLE,
-        items: [
-            {
-                label: OPENSUBTITLES_ENABLED_SETTING_LABEL,
-                displayLabel: "OpenSubtitles",
-                value: "On",
-                type: "toggle",
-                onValue: "On",
-                offValue: "Off",
-            },
-            {
-                label: OPENSUBTITLES_API_KEY_SETTING_LABEL,
-                displayLabel: "OpenSubtitles API Key (Optional)",
-                value: "",
-                type: "text",
-                placeholder: "Leave empty to use Soia's shared API key",
-            },
-            {
-                label: OPENSUBTITLES_LANGUAGES_SETTING_LABEL,
-                displayLabel: "Subtitle Languages",
-                value: "en",
-                type: "text",
-                placeholder: "en,zh",
-            },
-            {
-                label: SUBSOURCE_ENABLED_SETTING_LABEL,
-                displayLabel: "SubSource",
-                value: "Off",
-                type: "toggle",
-                onValue: "On",
-                offValue: "Off",
-            },
-            {
-                label: SUBSOURCE_API_KEY_SETTING_LABEL,
-                displayLabel: "SubSource API Key",
-                value: "",
-                type: "text",
-                placeholder: "Create a free key from your SubSource profile",
-            },
-            {
-                label: SUBSOURCE_LANGUAGES_SETTING_LABEL,
-                displayLabel: "Subtitle Languages",
-                value: "english",
-                type: "text",
-                placeholder: "english,arabic,persian",
-            },
-        ],
-    },
     // v1: Video settings are not supported yet. Keep this block for future rollout.
     // {
     //     title: "Video",

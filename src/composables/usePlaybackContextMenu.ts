@@ -13,7 +13,6 @@ type UsePlaybackContextMenuOptions = {
     getCurrentPath: () => string;
     getCurrentTitle: () => string;
     addToFavorites: (item: { path: string; title?: string }) => void;
-    searchOnlineSubtitles: (path: string, title?: string) => void | Promise<void>;
     openSubtitleAdvancedSettings: () => void;
     openSettings: () => void | Promise<void>;
     isRemoteControlEnabled: () => Promise<boolean>;
@@ -23,7 +22,6 @@ type UsePlaybackContextMenuOptions = {
 
 const ADD_TO_FAVORITES_ID = "add-to-favorites";
 const SUBTITLE_ID = "subtitle";
-const SUBTITLE_FIND_ONLINE_ID = "subtitle/find-online-subtitle";
 const SUBTITLE_ADVANCED_SETTINGS_ID = "subtitle/advanced-settings";
 const OPEN_SETTINGS_ID = "open-settings";
 const REMOTE_CONTROL_QR_CODE_ID = "remote-control-qr-code";
@@ -52,7 +50,6 @@ export const usePlaybackContextMenu = ({
     getCurrentPath,
     getCurrentTitle,
     addToFavorites,
-    searchOnlineSubtitles,
     openSubtitleAdvancedSettings,
     openSettings,
     isRemoteControlEnabled,
@@ -83,12 +80,6 @@ export const usePlaybackContextMenu = ({
                         id: SUBTITLE_ADVANCED_SETTINGS_ID,
                         label: "Advanced Subtitle Settings",
                         icon: "subtitle-advanced-settings",
-                        disabled: !hasPath,
-                    },
-                    {
-                        id: SUBTITLE_FIND_ONLINE_ID,
-                        label: "Find Online Subtitles",
-                        icon: "subtitle-search",
                         disabled: !hasPath,
                     },
                 ],
@@ -144,12 +135,6 @@ export const usePlaybackContextMenu = ({
                     path,
                     title: getCurrentTitle().trim() || undefined,
                 });
-            }
-        }
-        if (id === SUBTITLE_FIND_ONLINE_ID) {
-            const path = getCurrentPath().trim();
-            if (path) {
-                void searchOnlineSubtitles(path, getCurrentTitle().trim() || undefined);
             }
         }
         if (id === SUBTITLE_ADVANCED_SETTINGS_ID) {

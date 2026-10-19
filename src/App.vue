@@ -10,7 +10,6 @@ import PlaylistDrawer from "./components/PlaylistDrawer.vue";
 import PlaylistCreationDialog from "./components/PlaylistCreationDialog.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
 import ContextMenu from "./components/ContextMenu.vue";
-import OnlineSubtitleDialog from "./components/OnlineSubtitleDialog.vue";
 import RemoteControlQrDialog from "./components/RemoteControlQrDialog.vue";
 import WindowResizeRegions from "./components/WindowResizeRegions.vue";
 import { usePlaybackShortcuts } from "./composables/usePlaybackShortcuts";
@@ -429,7 +428,6 @@ const playbackContextMenu = usePlaybackContextMenu({
     getCurrentPath: () => player.state.media.url,
     getCurrentTitle: () => player.state.media.title,
     addToFavorites: playlistState.addToFavorites,
-    searchOnlineSubtitles: tracks.searchOnlineSubtitleTracks,
     openSubtitleAdvancedSettings: () => {
         tracks.showSubMenu.value = true;
         tracks.showSubtitleAdvancedSettings.value = true;
@@ -694,19 +692,6 @@ useAppStartupBindings({
             @close="remoteControlQrDialog.closeRemoteQrDialog"
         />
 
-        <OnlineSubtitleDialog
-            :open="tracks.isOnlineSubtitleDialogOpen.value"
-            :provider-tabs="tracks.onlineSubtitleProviderTabs.value"
-            :active-provider-id="tracks.activeOnlineSubtitleProviderId.value"
-            :results="tracks.onlineSubtitleResults.value"
-            :loading="tracks.isSearchingOnlineSubtitles.value"
-            :applying="tracks.isLoadingOnlineSubtitle.value"
-            :error-message="tracks.onlineSubtitleErrorMessage.value"
-            @close="tracks.closeOnlineSubtitleDialog"
-            @provider-change="tracks.setOnlineSubtitleProvider"
-            @select="tracks.addSelectedOnlineSubtitleTrack"
-        />
-
         <PlayerControls
             :is-playing="player.state.playback.isPlaying"
             :current-time="player.state.playback.currentTime"
@@ -801,7 +786,6 @@ useAppStartupBindings({
             @toggle-dual-sub="tracks.setDualSubEnabled"
             @add-external-audio="tracks.addExternalAudioTrack"
             @add-external-sub="tracks.addExternalSubtitleTrack"
-            @find-online-sub="player.state.media.url.trim() && tracks.searchOnlineSubtitleTracks(player.state.media.url, player.state.media.title || undefined)"
             @toggle-fullscreen="onToggleFullscreen"
             @update:show-subtitle-advanced-settings="tracks.showSubtitleAdvancedSettings.value = $event"
         />

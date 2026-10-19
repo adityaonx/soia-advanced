@@ -14,7 +14,7 @@
 
 ### Fixes
 
-- Fixed automatic audio track selection not being preserved after playback stops. ([#33](https://github.com/FengZeng/soia/issues/33))
+- Fixed automatic audio track selection not being preserved after playback stops. (#33)
 
 ## [0.2.12] - 2026-09-19
 
@@ -80,7 +80,7 @@
 
 ### Fixes
 
-- Fixed HDR brightness adjustment to use the correct HDR transfer handling. Thanks to [@cjohnsto-nz](https://github.com/cjohnsto-nz) for the contribution.
+- Fixed HDR brightness adjustment to use the correct HDR transfer handling. Thanks to @cjohnsto-nz for the contribution.
 
 ## [0.2.8] - 2026-07-11
 
@@ -168,7 +168,7 @@
 
 ### Features
 
-- Added native Windows ARM64 build support with help from [@talynone](https://github.com/talynone).
+- Added native Windows ARM64 build support with help from @talynone.
 - Added playback volume controls with persisted volume state and keyboard shortcut support.
 
 ### Improvements

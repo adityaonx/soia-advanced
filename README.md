@@ -9,10 +9,6 @@
 🎬 HDR & Dolby Vision · 🌐 WebDAV + DLNA + SMB Streaming · 📱 Web Remote Controller
 </p>
 
-<p align="center">
-<b><a href="https://github.com/FengZeng/soia/releases">⬇️ Download Latest Release</a> · <a href="https://github.com/FengZeng/soia/issues">🐞 Report a Bug</a></b>
-</p>
-
 English · [简体中文](README.zh-CN.md)
 
 ![Soia App Preview](docs/assets/screenshots/Soia.webp)
@@ -78,7 +74,7 @@ The desktop app and web remote are two independent clients of the same playback 
 
 ## Install
 
-Download from the [release page](https://github.com/FengZeng/soia/releases).
+Download from the release page.
 
 On macOS, you can install it with Homebrew:
 
@@ -206,7 +202,7 @@ pnpm setup:libs
 ```
 
 - If `pnpm setup:libs` fails, confirm release access to:
-  - `https://github.com/FengZeng/mpv/releases/tag/v0.41.0-r20`
+  - `FengZeng/mpv releases: v0.41.0-r20`
   - or set `MPV_RELEASE_ASSET_URL` to a direct asset URL and retry.
 
 - If Linux/Windows bundle scripts report missing runtime manifest, generate it on the target platform:

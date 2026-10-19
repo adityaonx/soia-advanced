@@ -9,10 +9,6 @@
 🎬 HDR 与杜比视界 · 🌐 WebDAV + DLNA + SMB 流媒体播放 · 📱 浏览器远程控制器
 </p>
 
-<p align="center">
-<b><a href="https://github.com/FengZeng/soia/releases">⬇️ 下载最新版本</a> · <a href="https://github.com/FengZeng/soia/issues">🐞 报告问题</a></b>
-</p>
-
 [English](README.md) · 简体中文
 
 ![Soia 应用预览](docs/assets/screenshots/Soia.webp)
@@ -78,7 +74,7 @@
 
 ## 安装
 
-请从[发布页面](https://github.com/FengZeng/soia/releases)下载。
+请从发布页面下载。
 
 在 macOS 上，可以使用 Homebrew 安装：
 
@@ -206,7 +202,7 @@ pnpm setup:libs
 ```
 
 - 如果 `pnpm setup:libs` 失败，请确认可以访问以下发布地址：
-  - `https://github.com/FengZeng/mpv/releases/tag/v0.41.0-r20`
+  - `FengZeng/mpv 发布标签: v0.41.0-r20`
   - 或将 `MPV_RELEASE_ASSET_URL` 设置为直接资源 URL 后重试。
 
 - 如果 Linux/Windows 打包脚本提示缺少运行时清单，请在目标平台生成：
